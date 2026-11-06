@@ -59,14 +59,14 @@ base64 -d photo.b64 > photo.png
 base64 -w4 file.txt
 
 # Decode a file with CRLF line endings
-base64 -di windows-file.b64
+base64 -d windows-file.b64
 ```
 
 On error, the exit code is `1`. With invalid data, everything valid before the error is written, followed by `base64: invalid input` on stderr, as in GNU.
 
 ## Windows caveats
 
-- **CRLF line endings:** as in GNU, `-d` only accepts `\n`, and `\r` causes `invalid input`. Use `-di` for files with CRLF.
+- **Trailing spaces and CRLF:** unlike GNU, `-d` accepts spaces and `\r` at the end of a line or of the input, because `cmd`'s `echo` sends `text= \r\n` for `echo text= | base64 -d`. Inside the data they still cause `invalid input`. Use `-di` to discard them anywhere.
 - **Windows PowerShell 5.1:** `>` and `|` between native commands re-encode bytes and can corrupt binary data. Use `cmd`, Git Bash or PowerShell 7.4+ instead.
 - **Console output:** `-d` writes bytes without conversion. If accented characters look wrong, enable UTF-8 with `chcp 65001`.
 - **WSL interop:** running a `.exe` from WSL with stdin and stdout on large files can hang. This also happened with Git's `base64.exe`, so the cause is not in this project. Run the binary directly on Windows.

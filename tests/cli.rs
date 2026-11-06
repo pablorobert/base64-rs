@@ -83,10 +83,62 @@ fn invalid_input_keeps_partial_output_and_fails() {
 }
 
 #[test]
-fn carriage_return_is_garbage_unless_ignored() {
-    assert_eq!(run(&["-d"], b"Zm9v\r\n").status.code(), Some(1));
-    let output = run(&["-d", "-i"], b"Zm9v\r\n");
-    assert_eq!(output.stdout, b"foo");
+fn decode_accepts_what_cmd_echo_sends() {
+    // `echo texto | base64` encodes "texto \r\n"; `echo <that> | base64 -d` adds
+    // the same space and CRLF after the encoded text.
+    for input in [
+        &b"dGV4dG8gDQo=\r\n"[..],
+        b"dGV4dG8gDQo= \r\n",
+        b"dGV4dG8gDQo=  \r\n",
+        b"dGV4dG8gDQo= ",
+        b"dGV4dG8gDQo=\r",
+    ] {
+        let output = run(&["-d"], input);
+        assert_eq!(output.stdout, b"texto \r\n", "{input:?}");
+        assert!(output.status.success(), "{input:?}");
+    }
+}
+
+#[test]
+fn decode_accepts_crlf_between_lines() {
+    let output = run(&["-d"], b"Zm9v\r\nYmFy\r\n");
+    assert_eq!(output.stdout, b"foobar");
+    assert!(output.status.success());
+}
+
+#[test]
+fn decode_handles_trailing_blanks_across_chunk_boundaries() {
+    let plain: Vec<u8> = (0..1_000_003u32).map(|i| (i % 251) as u8).collect();
+    let encoded = String::from_utf8(run(&[], &plain).stdout).unwrap();
+    let output = run(&["-d"], encoded.replace('\n', " \r\n").as_bytes());
+    assert_eq!(output.stdout, plain);
+    assert!(output.status.success());
+}
+
+#[test]
+fn blank_before_more_data_is_still_invalid() {
+    for (input, partial) in [
+        (&b"Zm9v Zm9v"[..], &b"foo"[..]),
+        (b"Zm9v\rZm9v", b"foo"),
+        (b"Zm9 v", b"fo"),
+    ] {
+        let output = run(&["-d"], input);
+        assert_eq!(output.stdout, partial, "{input:?}");
+        assert_eq!(output.status.code(), Some(1), "{input:?}");
+    }
+}
+
+#[test]
+fn missing_padding_is_still_invalid_as_in_gnu() {
+    let output = run(&["-d"], b"dGV4dG8gDQo \r\n");
+    assert_eq!(output.stdout, b"texto \r\n");
+    assert_eq!(output.status.code(), Some(1));
+}
+
+#[test]
+fn ignore_garbage_still_discards_blanks_everywhere() {
+    let output = run(&["-d", "-i"], b"Zm 9v\r\nYm\rFy");
+    assert_eq!(output.stdout, b"foobar");
     assert!(output.status.success());
 }
 

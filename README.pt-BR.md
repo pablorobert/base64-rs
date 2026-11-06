@@ -59,14 +59,14 @@ base64 -d foto.b64 > foto.png
 base64 -w4 arquivo.txt
 
 # Decodificar um arquivo com quebras de linha CRLF
-base64 -di arquivo-windows.b64
+base64 -d arquivo-windows.b64
 ```
 
 Em caso de erro, a saída é `1`. Com dados inválidos, tudo o que era válido antes do erro é escrito, seguido de `base64: invalid input` em stderr, como no GNU.
 
 ## Cuidados no Windows
 
-- **Quebras de linha CRLF:** assim como no GNU, `-d` só aceita `\n`, e `\r` gera `invalid input`. Use `-di` em arquivos com CRLF.
+- **Espaço e CRLF no fim da linha:** diferente do GNU, `-d` aceita espaços e `\r` no fim de uma linha ou da entrada, porque o `echo` do `cmd` envia `texto= \r\n` em `echo texto= | base64 -d`. No meio dos dados, eles ainda geram `invalid input`. Use `-di` para descartá-los em qualquer posição.
 - **Windows PowerShell 5.1:** `>` e `|` entre comandos nativos recodificam os bytes e podem corromper dados binários. Prefira o `cmd`, o Git Bash ou o PowerShell 7.4+.
 - **Saída no console:** `-d` escreve os bytes sem conversão. Se os acentos aparecerem errados, ative UTF-8 com `chcp 65001`.
 - **Interop do WSL:** executar um `.exe` a partir do WSL com stdin e stdout em arquivos grandes pode travar. Isso também aconteceu com o `base64.exe` do Git, então a causa não está neste projeto. Rode o binário direto no Windows.

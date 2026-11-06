@@ -335,19 +335,31 @@ fn decode_stream(
     let mut decoded = Vec::with_capacity(DECODE_CHUNK / 4 * 3);
     let mut group = [0u8; 4];
     let mut pending = 0;
+    // Deliberate GNU difference: `echo x= | base64 -d` in cmd sends "x= \r\n", so
+    // spaces and CRs are tolerated at the end of a line or of the input. One
+    // followed by more data is still invalid, so it is held until that is known.
+    let mut blank = None;
 
     loop {
         let read = read_full(input, &mut data).map_err(Failure::Read)?;
         decoded.clear();
         let mut valid = true;
         for &byte in &data[..read] {
-            let skip = if ignore_garbage {
-                !is_alphabet(byte) && byte != b'='
-            } else {
-                byte == b'\n'
-            };
-            if skip {
+            if ignore_garbage {
+                if !is_alphabet(byte) && byte != b'=' {
+                    continue;
+                }
+            } else if byte == b'\n' {
+                blank = None;
                 continue;
+            } else if byte == b' ' || byte == b'\r' {
+                blank = Some(byte);
+                continue;
+            } else if let Some(garbage) = blank {
+                group[pending] = garbage;
+                decode_group(&group[..=pending], &mut decoded);
+                valid = false;
+                break;
             }
             group[pending] = byte;
             pending += 1;
